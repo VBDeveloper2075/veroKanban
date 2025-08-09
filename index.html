@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero Kanban</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f5f7;
+            overflow-y: hidden; 
+        }
+        #kanban-board::-webkit-scrollbar {
+            height: 12px;
+        }
+        #kanban-board::-webkit-scrollbar-thumb {
+            background-color: #a0aec0;
+            border-radius: 6px;
+        }
+        #kanban-board::-webkit-scrollbar-track {
+            background-color: #e2e8f0;
+        }
+        .kanban-column-container {
+            height: calc(100vh - 235px); /* Ajustar altura */
+            overflow-y: auto;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .kanban-column-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .kanban-column-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e0;
+            border-radius: 4px;
+        }
+        .task-card {
+            cursor: grab;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .task-card:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .task-card.dragging {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-full mx-auto flex flex-col h-screen">
+        <header class="mb-6 flex-shrink-0">
+            <h1 class="text-3xl font-bold text-gray-800">Mi Tablero Kanban</h1>
+            <p class="text-gray-600">Organiza tus tareas de forma visual e intuitiva.</p>
+        </header>
+
+        <!-- Controles de la aplicación -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex-shrink-0">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <!-- Formulario para añadir nuevas tareas -->
+                <div class="flex flex-wrap gap-4 flex-grow">
+                    <input type="text" id="task-title" placeholder="Título de la tarea..." class="flex-grow p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none min-w-[200px]">
+                    <select id="task-urgency" class="p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="high" class="text-red-600 font-medium">Urgencia Alta</option>
+                        <option value="medium" class="text-yellow-600 font-medium">Urgencia Media</option>
+                        <option value="low" class="text-green-600 font-medium">Urgencia Baja</option>
+                    </select>
+                    <button id="add-task-btn" class="bg-blue-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-blue-700 transition-colors">Añadir</button>
+                </div>
+                <!-- Botones de acción -->
+                <div class="flex items-center gap-4">
+                    <button id="export-csv-btn" class="bg-green-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-green-700 transition-colors">Exportar a CSV</button>
+                    <button id="reset-board-btn" class="bg-red-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-red-700 transition-colors">Reiniciar Tablero</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenedor del tablero Kanban -->
+        <div id="kanban-board" class="flex-grow flex space-x-4 overflow-x-auto pb-4">
+            <!-- Las columnas se generarán aquí con JavaScript -->
+        </div>
+    </div>
+
+    <!-- Modal de Confirmación para Reiniciar -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+            <h3 class="text-lg font-bold mb-4">Confirmar Acción</h3>
+            <p id="modal-text" class="mb-6">¿Estás seguro de que quieres reiniciar el tablero? Esta acción eliminará todas las tareas y no se puede deshacer.</p>
+            <div class="flex justify-end gap-4">
+                <button id="modal-cancel-btn" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancelar</button>
+                <button id="modal-confirm-btn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- ESTADO Y DATOS INICIALES ---
+        const columns = [
+            { id: 'backlog', title: 'Pila de Tareas' },
+            { id: 'todo', title: 'Por Hacer' },
+            { id: 'inprogress', title: 'En Progreso' },
+            { id: 'review', title: 'En Revisión' },
+            { id: 'blocked', title: 'Bloqueado' },
+            { id: 'done', title: 'Hecho' }
+        ];
+
+        const defaultTasks = [
+            { id: 1, title: 'Diseñar la nueva landing page', urgency: 'high', column: 'todo' },
+            { id: 2, title: 'Desarrollar la API de autenticación', urgency: 'high', column: 'inprogress' },
+            { id: 3, title: 'Revisar el feedback de los usuarios', urgency: 'medium', column: 'review' },
+            { id: 4, title: 'Investigar nueva librería de gráficos', urgency: 'low', column: 'backlog' },
+            { id: 5, title: 'Fix: El botón de pago no funciona en Safari', urgency: 'high', column: 'blocked' },
+            { id: 6, title: 'Desplegar la versión 2.1 a producción', urgency: 'medium', column: 'done' },
+        ];
+
+        // --- PERSISTENCIA DE DATOS (localStorage) ---
+        let tasks = JSON.parse(localStorage.getItem('kanbanTasks')) || JSON.parse(JSON.stringify(defaultTasks));
+
+        function saveTasks() {
+            localStorage.setItem('kanbanTasks', JSON.stringify(tasks));
+        }
+
+        // --- REFERENCIAS AL DOM ---
+        const board = document.getElementById('kanban-board');
+        const addTaskBtn = document.getElementById('add-task-btn');
+        const taskTitleInput = document.getElementById('task-title');
+        const taskUrgencySelect = document.getElementById('task-urgency');
+        const exportCsvBtn = document.getElementById('export-csv-btn');
+        const resetBoardBtn = document.getElementById('reset-board-btn');
+        const confirmModal = document.getElementById('confirm-modal');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+
+        // --- RENDERIZADO ---
+        function renderBoard() {
+            board.innerHTML = '';
+            columns.forEach(column => {
+                const columnEl = document.createElement('div');
+                columnEl.className = 'bg-gray-100 rounded-lg w-80 flex-shrink-0 flex flex-col';
+                columnEl.innerHTML = `
+                    <h3 class="font-semibold text-gray-700 p-3 flex-shrink-0">${column.title}</h3>
+                    <div class="kanban-column-container p-3 pt-0" data-column-id="${column.id}">
+                         <div class="kanban-column space-y-3"></div>
+                    </div>
+                `;
+                board.appendChild(columnEl);
+                const columnContainerEl = columnEl.querySelector('.kanban-column-container');
+                addDragAndDropListeners(columnContainerEl);
+            });
+            renderTasks();
+        }
+
+        function renderTasks() {
+            document.querySelectorAll('.kanban-column').forEach(col => col.innerHTML = '');
+            tasks.forEach(task => {
+                const columnContainer = document.querySelector(`[data-column-id="${task.column}"]`);
+                if (columnContainer) {
+                    const columnContent = columnContainer.querySelector('.kanban-column');
+                    const taskEl = createTaskElement(task);
+                    columnContent.appendChild(taskEl);
+                }
+            });
+        }
+
+        function createTaskElement(task) {
+            const taskEl = document.createElement('div');
+            taskEl.id = `task-${task.id}`;
+            taskEl.className = 'task-card p-3 rounded-md shadow bg-white';
+            taskEl.draggable = true;
+            const urgencyColors = {
+                high: 'border-l-4 border-red-500',
+                medium: 'border-l-4 border-yellow-500',
+                low: 'border-l-4 border-green-500'
+            };
+            const classesToAdd = urgencyColors[task.urgency].split(' ');
+            taskEl.classList.add(...classesToAdd);
+            taskEl.innerHTML = `<p class="text-sm font-medium text-gray-800">${task.title}</p>`;
+            taskEl.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', task.id);
+                taskEl.classList.add('dragging');
+            });
+            taskEl.addEventListener('dragend', () => {
+                taskEl.classList.remove('dragging');
+            });
+            return taskEl;
+        }
+
+        // --- LÓGICA DE DRAG AND DROP ---
+        function addDragAndDropListeners(dropZone) {
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault(); 
+                dropZone.classList.add('bg-blue-100');
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('bg-blue-100');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('bg-blue-100');
+                const taskId = e.dataTransfer.getData('text/plain');
+                const targetColumnId = dropZone.dataset.columnId;
+                const taskToMove = tasks.find(t => t.id == taskId);
+                if (taskToMove && taskToMove.column !== targetColumnId) {
+                    taskToMove.column = targetColumnId;
+                    saveTasks();
+                    renderTasks();
+                }
+            });
+        }
+
+        // --- MANEJO DE EVENTOS ---
+        function handleAddTask() {
+            const title = taskTitleInput.value.trim();
+            if (!title) {
+                taskTitleInput.classList.add('border-red-500', 'ring-red-500');
+                taskTitleInput.placeholder = 'El título es obligatorio';
+                setTimeout(() => {
+                    taskTitleInput.classList.remove('border-red-500', 'ring-red-500');
+                    taskTitleInput.placeholder = 'Título de la tarea...';
+                }, 2000);
+                return;
+            }
+            const newTask = {
+                id: Date.now(),
+                title: title,
+                urgency: taskUrgencySelect.value,
+                column: 'backlog'
+            };
+            tasks.push(newTask);
+            saveTasks();
+            renderTasks();
+            taskTitleInput.value = '';
+        }
+
+        function handleExportToCSV() {
+            const columnTitles = columns.reduce((acc, col) => {
+                acc[col.id] = col.title;
+                return acc;
+            }, {});
+            const urgencyTitles = { high: 'Alta', medium: 'Media', low: 'Baja' };
+            let csvContent = "data:text/csv;charset=utf-8,Título de la Tarea,Urgencia,Estado\n";
+            tasks.forEach(task => {
+                const title = `"${task.title.replace(/"/g, '""')}"`;
+                const urgency = urgencyTitles[task.urgency];
+                const status = columnTitles[task.column];
+                csvContent += [title, urgency, status].join(",") + "\n";
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "kanban_export.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function handleResetBoard() {
+            confirmModal.classList.remove('hidden');
+            confirmModal.classList.add('flex');
+        }
+
+        // --- ASIGNACIÓN DE EVENTOS ---
+        addTaskBtn.addEventListener('click', handleAddTask);
+        taskTitleInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleAddTask();
+        });
+        exportCsvBtn.addEventListener('click', handleExportToCSV);
+        resetBoardBtn.addEventListener('click', handleResetBoard);
+
+        modalCancelBtn.addEventListener('click', () => {
+            confirmModal.classList.add('hidden');
+            confirmModal.classList.remove('flex');
+        });
+
+        modalConfirmBtn.addEventListener('click', () => {
+            localStorage.removeItem('kanbanTasks');
+            tasks = JSON.parse(JSON.stringify(defaultTasks));
+            saveTasks();
+            renderBoard();
+            confirmModal.classList.add('hidden');
+            confirmModal.classList.remove('flex');
+        });
+
+        // --- INICIALIZACIÓN ---
+        document.addEventListener('DOMContentLoaded', renderBoard);
+    </script>
+</body>
+</html>
