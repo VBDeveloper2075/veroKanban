@@ -7,7 +7,7 @@
   "start": "node server.js",
   "dev": "node server.js",
   "build:exe": "npm run pkg:win",
-  "pkg:win": "pkg . --targets node18-win-x64 --out-path dist",
+  "pkg:win": "pkg server.js --targets node18-win-x64 --output dist/verokanban.exe",
   "release:win": "npm run build:exe && node scripts/make-release.js"
   },
   "keywords": [],
@@ -32,6 +32,8 @@
       "node_modules/sqlite3/lib/binding/**/node_sqlite3.node"
     ],
     "outputPath": "dist",
-    "bin": "server.js"
+    "targets": [
+      "node18-win-x64"
+    ]
   }
 }

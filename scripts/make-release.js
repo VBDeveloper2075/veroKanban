@@ -4,7 +4,12 @@ const { execSync } = require('child_process');
 
 const ROOT = __dirname.replace(/\\scripts$/, '');
 const DIST = path.join(ROOT, 'dist');
-const EXE = path.join(DIST, 'verokanban.exe');
+let EXE = path.join(DIST, 'verokanban.exe');
+const ALT_EXE = path.join(DIST, 'server.exe');
+if (!fs.existsSync(EXE) && fs.existsSync(ALT_EXE)) {
+  // normalize name to verokanban.exe
+  fs.renameSync(ALT_EXE, EXE);
+}
 const DATA = path.join(DIST, 'data');
 
 if (!fs.existsSync(EXE)) {
