@@ -1,0 +1,40 @@
+## Dependencies
+node_modules/
+
+## Environment files (never commit secrets)
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+## Local config files (keep API keys out of the repo)
+config.local.js
+config.local.json
+*.secret.*
+*secret*.json
+*.key
+*.pem
+credentials.json
+google-credentials.json
+service-account*.json
+
+## Build outputs (if added later)
+dist/
+build/
+
+## OS / Editor junk
+.DS_Store
+Thumbs.db
+
+## App exports
+*.csv
+kanban_export.csv
+
+## SQLite database files
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal

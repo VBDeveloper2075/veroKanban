@@ -1,0 +1,41 @@
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f4f5f7;
+    overflow-y: hidden; 
+}
+#kanban-board::-webkit-scrollbar {
+    height: 12px;
+}
+#kanban-board::-webkit-scrollbar-thumb {
+    background-color: #a0aec0;
+    border-radius: 6px;
+}
+#kanban-board::-webkit-scrollbar-track {
+    background-color: #e2e8f0;
+}
+.kanban-column-container {
+    height: calc(100vh - 235px); /* Ajustar altura */
+    overflow-y: auto;
+    transition: background-color 0.2s ease-in-out;
+}
+.kanban-column-container::-webkit-scrollbar {
+    width: 8px;
+}
+.kanban-column-container::-webkit-scrollbar-thumb {
+    background-color: #cbd5e0;
+    border-radius: 4px;
+}
+.task-card {
+    cursor: grab;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.task-card:active {
+    cursor: grabbing;
+    transform: scale(1.05);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+.task-card.dragging {
+    opacity: 0.5;
+}
+  
