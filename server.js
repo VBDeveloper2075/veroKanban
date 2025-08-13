@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const express = require('express');
 const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
@@ -8,7 +9,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Paths
-const DB_DIR = path.join(__dirname, 'data');
+// When packaged with pkg, __dirname is read-only (snapshot). Choose a writable base for DB.
+const WRITABLE_BASE = process.pkg
+  ? path.join(process.cwd(), 'data')
+  : path.join(__dirname, 'data');
+const DB_DIR = WRITABLE_BASE;
 const DB_PATH = path.join(DB_DIR, 'kanban.db');
 
 if (!fs.existsSync(DB_DIR)) {
@@ -31,6 +36,7 @@ app.use(cors());
 app.use(express.json());
 
 // Static frontend
+// Serve static files from snapshot (__dirname) which contains index.html, css, js
 app.use(express.static(__dirname));
 
 // Helpers

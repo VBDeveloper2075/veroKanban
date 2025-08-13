@@ -4,8 +4,10 @@
   "description": "Kanban board with Express + SQLite backend",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+  "start": "node server.js",
+  "dev": "node server.js",
+  "build:exe": "npm run pkg:win",
+  "pkg:win": "pkg . --targets node18-win-x64 --out-path dist"
   },
   "keywords": [],
   "author": "",
@@ -14,5 +16,20 @@
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [
+      "index.html",
+      "style.css",
+      "script.js"
+    ],
+    "binaries": [
+      "node_modules/sqlite3/lib/binding/**/node_sqlite3.node"
+    ],
+    "outputPath": "dist",
+    "bin": "server.js"
   }
 }
