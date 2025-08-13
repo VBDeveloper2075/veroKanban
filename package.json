@@ -7,7 +7,8 @@
   "start": "node server.js",
   "dev": "node server.js",
   "build:exe": "npm run pkg:win",
-  "pkg:win": "pkg . --targets node18-win-x64 --out-path dist"
+  "pkg:win": "pkg . --targets node18-win-x64 --out-path dist",
+  "release:win": "npm run build:exe && node scripts/make-release.js"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +19,8 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
-    "pkg": "^5.8.1"
+  "bestzip": "^2.2.1",
+  "pkg": "^5.8.1"
   },
   "pkg": {
     "assets": [
