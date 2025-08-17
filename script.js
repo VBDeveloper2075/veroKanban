@@ -204,14 +204,54 @@ function createTaskElement(task) {
     };
     const classesToAdd = urgencyColors[task.urgency].split(' ');
     taskEl.classList.add(...classesToAdd);
-    taskEl.innerHTML = `<p class="text-sm font-medium text-gray-800">${task.title}</p>`;
+    
+    // Contenido principal de la tarjeta
+    const taskContent = document.createElement('div');
+    taskContent.className = 'task-content';
+    taskContent.innerHTML = `<p class="text-sm font-medium text-gray-800">${task.title}</p>`;
+    taskEl.appendChild(taskContent);
+    
+    // Botones de acción (editar y eliminar)
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'task-actions';
+    
+    // Botón de editar (lapicito)
+    const editBtn = document.createElement('button');
+    editBtn.className = 'task-action-btn edit-btn';
+    editBtn.title = 'Editar tarea';
+    editBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>';
+    editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        editTask(task, taskContent);
+    });
+    
+    // Botón de eliminar (tachito)
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'task-action-btn delete-btn';
+    deleteBtn.title = 'Eliminar tarea';
+    deleteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteTask(task.id);
+    });
+    
+    // Agregar botones al div de acciones
+    actionsDiv.appendChild(editBtn);
+    actionsDiv.appendChild(deleteBtn);
+    
+    // Agregar div de acciones a la tarjeta
+    taskEl.appendChild(actionsDiv);
+    
+    // Eventos para arrastrar
     taskEl.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('text/plain', task.id);
         taskEl.classList.add('dragging');
     });
+    
     taskEl.addEventListener('dragend', () => {
         taskEl.classList.remove('dragging');
     });
+    
     return taskEl;
 }
 
@@ -262,26 +302,211 @@ async function handleAddTask() {
   taskTitleInput.value = '';
 }
 
-function handleExportToCSV() {
+// Función para editar una tarea
+function editTask(task, taskContentEl) {
+  // Guardar el título original por si se cancela la edición
+  const originalTitle = task.title;
+  
+  // Crear el formulario de edición
+  const editForm = document.createElement('div');
+  editForm.className = 'task-edit-form';
+  editForm.innerHTML = `
+    <input type="text" value="${task.title}" class="edit-task-input" />
+    <div class="flex justify-end gap-2 mt-2">
+      <button class="bg-gray-200 text-gray-800 px-2 py-1 rounded cancel-edit">Cancelar</button>
+      <button class="bg-blue-500 text-white px-2 py-1 rounded save-edit">Guardar</button>
+    </div>
+  `;
+  
+  // Reemplazar el contenido con el formulario
+  taskContentEl.innerHTML = '';
+  taskContentEl.appendChild(editForm);
+  
+  // Enfocar el input
+  const input = editForm.querySelector('input');
+  input.focus();
+  input.select();
+  
+  // Prevenir el arrastrar mientras se edita
+  const taskEl = taskContentEl.closest('.task-card');
+  taskEl.draggable = false;
+  
+  // Manejar el guardar
+  const saveBtn = editForm.querySelector('.save-edit');
+  saveBtn.addEventListener('click', async () => {
+    const newTitle = input.value.trim();
+    if (newTitle) {
+      task.title = newTitle;
+      await updateTask(task);
+      finishEditing();
+    }
+  });
+  
+  // Manejar el cancelar
+  const cancelBtn = editForm.querySelector('.cancel-edit');
+  cancelBtn.addEventListener('click', () => {
+    task.title = originalTitle; // Restaurar título original
+    finishEditing();
+  });
+  
+  // Manejar tecla Enter y Escape
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      saveBtn.click();
+    } else if (e.key === 'Escape') {
+      cancelBtn.click();
+    }
+  });
+  
+  // Función para terminar la edición
+  function finishEditing() {
+    taskContentEl.innerHTML = `<p class="text-sm font-medium text-gray-800">${task.title}</p>`;
+    taskEl.draggable = true;
+  }
+}
+
+// Función para eliminar una tarea
+async function deleteTask(taskId) {
+  // Pedir confirmación
+  if (confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
+    // Buscar la tarea
+    const taskIndex = tasks.findIndex(t => t.id == taskId);
+    
+    if (taskIndex !== -1) {
+      const task = tasks[taskIndex];
+      
+      // Eliminar del arreglo local
+      tasks.splice(taskIndex, 1);
+      
+      // Eliminar de la base de datos
+      if (await apiAvailable()) {
+        try {
+          const res = await fetch(`/api/tasks/${taskId}`, { 
+            method: 'DELETE' 
+          });
+          
+          if (!res.ok) {
+            console.error('Error al eliminar tarea del servidor:', res.statusText);
+          } else {
+            console.log('Tarea eliminada del servidor:', taskId);
+          }
+        } catch (error) {
+          console.error('Error al eliminar tarea:', error);
+        }
+      }
+      
+      // Actualizar localStorage
+      saveTasks();
+      
+      // Re-renderizar las tareas
+      renderTasks();
+    }
+  }
+}
+
+function handleExportToWord() {
     const columnTitles = columns.reduce((acc, col) => {
         acc[col.id] = col.title;
         return acc;
     }, {});
     const urgencyTitles = { high: 'Alta', medium: 'Media', low: 'Baja' };
-    let csvContent = "data:text/csv;charset=utf-8,Título de la Tarea,Urgencia,Estado\n";
+    const urgencyColors = { high: '#ffcccc', medium: '#ffffcc', low: '#ccffcc' };
+    
+    // Fecha actual para el encabezado
+    const now = new Date();
+    const dateOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+    const currentDate = now.toLocaleDateString('es-ES', dateOptions);
+    
+    // Crear el contenido HTML compatible con Word
+    let htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Tablero Kanban - Exportación</title>
+        <style>
+            body { font-family: Arial, sans-serif; }
+            h1 { color: #2a4b8d; text-align: center; }
+            .date { text-align: center; margin-bottom: 20px; color: #666; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #2a4b8d; color: white; padding: 8px; text-align: left; }
+            td { padding: 8px; border-bottom: 1px solid #ddd; }
+            .high { background-color: #ffcccc; }
+            .medium { background-color: #ffffcc; }
+            .low { background-color: #ccffcc; }
+            .summary { margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px; }
+        </style>
+    </head>
+    <body>
+        <h1>Tablero Kanban - Tareas</h1>
+        <div class="date">${currentDate}</div>
+        
+        <table>
+            <tr>
+                <th style="width: 50%">Título de la Tarea</th>
+                <th style="width: 20%">Urgencia</th>
+                <th style="width: 30%">Estado</th>
+            </tr>`;
+            
+    // Agregar filas para cada tarea
     tasks.forEach(task => {
-        const title = `"${task.title.replace(/"/g, '""')}"`;
+        const title = task.title;
         const urgency = urgencyTitles[task.urgency];
         const status = columnTitles[task.column];
-        csvContent += [title, urgency, status].join(",") + "\n";
+        const urgencyClass = task.urgency;
+        
+        htmlContent += `
+            <tr class="${urgencyClass}">
+                <td>${title}</td>
+                <td>${urgency}</td>
+                <td>${status}</td>
+            </tr>`;
     });
-    const encodedUri = encodeURI(csvContent);
+    
+    // Agregar resumen de tareas por estado
+    const tasksByState = columns.map(col => {
+        return {
+            name: col.title,
+            count: tasks.filter(t => t.column === col.id).length
+        };
+    });
+    
+    htmlContent += `
+        </table>
+        
+        <div class="summary">
+            <h3>Resumen de tareas por estado:</h3>
+            <ul>`;
+            
+    tasksByState.forEach(state => {
+        htmlContent += `<li><strong>${state.name}:</strong> ${state.count} tareas</li>`;
+    });
+            
+    htmlContent += `
+            </ul>
+            <p><strong>Total de tareas:</strong> ${tasks.length}</p>
+        </div>
+    </body>
+    </html>`;
+    
+    // Crear un blob con el contenido HTML
+    const blob = new Blob([htmlContent], {type: 'application/msword'});
+    
+    // Crear un URL para el blob
+    const url = URL.createObjectURL(blob);
+    
+    // Crear un enlace para descargar el archivo
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "kanban_export.csv");
+    link.href = url;
+    link.download = "kanban_tablero.doc"; // Extensión .doc para compatibilidad con Word
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    
+    // Limpiar el URL creado
+    setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, 100);
 }
 
 function handleResetBoard() {
@@ -294,7 +519,7 @@ addTaskBtn.addEventListener('click', handleAddTask);
 taskTitleInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleAddTask();
 });
-exportCsvBtn.addEventListener('click', handleExportToCSV);
+exportCsvBtn.addEventListener('click', handleExportToWord);
 resetBoardBtn.addEventListener('click', handleResetBoard);
 
 modalCancelBtn.addEventListener('click', () => {
@@ -311,22 +536,20 @@ modalConfirmBtn.addEventListener('click', async () => {
     // Intentamos resetear el servidor
     const serverReset = await resetServer();
     
-    // Cargamos las tareas por defecto
-    tasks = JSON.parse(JSON.stringify(defaultTasks));
+    // Establecer un array vacío para las tareas (eliminar todas las tarjetas)
+    tasks = [];
     
-    // Si el servidor está disponible, persistimos las tareas por defecto
-    if (serverReset && await apiAvailable()) {
-      console.log('Persistiendo tareas por defecto en el servidor...');
-      for (const t of tasks) {
-        await persistTask(t);
-      }
+    // Si el servidor está disponible, nos aseguramos de que esté vacío
+    if (await apiAvailable()) {
+      console.log('El servidor ha sido reseteado correctamente');
+      // No necesitamos hacer nada más, el servidor ya está vacío
     } else {
-      // Si no, solo guardamos en localStorage
-      console.log('Persistiendo tareas por defecto en localStorage');
+      // Si no hay servidor disponible, guardamos el array vacío en localStorage
+      console.log('Guardando tablero vacío en localStorage');
       saveTasks();
     }
     
-    // Renderizamos el tablero
+    // Renderizamos el tablero vacío
     renderBoard();
     
     // Ocultamos el modal
