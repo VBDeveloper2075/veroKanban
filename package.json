@@ -8,7 +8,9 @@
   "dev": "node server.js",
   "build:exe": "npm run pkg:win",
   "pkg:win": "pkg server.js --targets node18-win-x64 --output dist/verokanban.exe",
-  "release:win": "npm run build:exe && node scripts/make-release.js"
+  "release:win": "npm run build:exe && node scripts/make-release.js",
+  "verify-db": "node scripts/verify-db.js",
+  "backup-db": "node scripts/backup-db.js"
   },
   "keywords": [],
   "author": "",

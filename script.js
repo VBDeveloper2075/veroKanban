@@ -22,21 +22,64 @@ let tasks = [];
 
 // Backend API helper with fallback
 const API_BASE = '';
+let apiAvailabilityCache = null;
+let lastApiCheck = 0;
+
 async function apiAvailable() {
+  const now = Date.now();
+  // Usar caché por 30 segundos para evitar muchas llamadas al servidor
+  if (apiAvailabilityCache !== null && now - lastApiCheck < 30000) {
+    return apiAvailabilityCache;
+  }
+  
   try {
-    const res = await fetch('/api/tasks', { method: 'GET' });
-    return res.ok;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    
+    const res = await fetch('/api/tasks', { 
+      method: 'HEAD', // HEAD es más ligero que GET
+      signal: controller.signal 
+    });
+    
+    clearTimeout(timeoutId);
+    apiAvailabilityCache = res.ok;
+    lastApiCheck = now;
+    console.log('API disponible:', apiAvailabilityCache);
+    return apiAvailabilityCache;
   } catch (e) {
+    apiAvailabilityCache = false;
+    lastApiCheck = now;
+    console.log('API no disponible:', e.message);
     return false;
   }
 }
 
 async function loadTasks() {
-  if (await apiAvailable()) {
-    const res = await fetch('/api/tasks');
-    tasks = await res.json();
-    saveTasks();
-  } else {
+  try {
+    if (await apiAvailable()) {
+      console.log('API disponible, cargando tareas desde el servidor...');
+      const res = await fetch('/api/tasks');
+      if (!res.ok) {
+        throw new Error('Error al obtener tareas del servidor');
+      }
+      tasks = await res.json();
+      // También guardamos en localStorage como respaldo
+      saveTasks();
+      console.log('Tareas cargadas desde el servidor:', tasks.length);
+    } else {
+      console.log('API no disponible, cargando tareas desde localStorage...');
+      const savedTasks = localStorage.getItem('kanbanTasks');
+      if (savedTasks) {
+        tasks = JSON.parse(savedTasks);
+        console.log('Tareas cargadas desde localStorage:', tasks.length);
+      } else {
+        console.log('No hay tareas en localStorage, usando tareas por defecto');
+        tasks = JSON.parse(JSON.stringify(defaultTasks));
+        saveTasks();
+      }
+    }
+  } catch (error) {
+    console.error('Error al cargar las tareas:', error);
     tasks = JSON.parse(localStorage.getItem('kanbanTasks')) || JSON.parse(JSON.stringify(defaultTasks));
   }
 }
@@ -46,24 +89,64 @@ function saveTasks() {
 }
 
 async function persistTask(task) {
-  if (await apiAvailable()) {
-    await fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(task) });
-  } else {
+  try {
+    if (await apiAvailable()) {
+      const res = await fetch('/api/tasks', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(task) 
+      });
+      if (!res.ok) {
+        throw new Error(`Error al guardar tarea: ${res.status} ${res.statusText}`);
+      }
+      console.log('Tarea guardada en el servidor:', task.id);
+    }
+    // Siempre guardamos en localStorage, incluso si el servidor está disponible
+    // como respaldo en caso de que el servidor falle en el futuro
+    saveTasks();
+  } catch (error) {
+    console.error('Error al persistir tarea:', error);
+    // Aseguramos que al menos se guarda en localStorage
     saveTasks();
   }
 }
 
 async function updateTask(task) {
-  if (await apiAvailable()) {
-    await fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(task) });
-  } else {
+  try {
+    if (await apiAvailable()) {
+      const res = await fetch(`/api/tasks/${task.id}`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(task) 
+      });
+      if (!res.ok) {
+        throw new Error(`Error al actualizar tarea: ${res.status} ${res.statusText}`);
+      }
+      console.log('Tarea actualizada en el servidor:', task.id);
+    }
+    // Siempre actualizamos localStorage
+    saveTasks();
+  } catch (error) {
+    console.error('Error al actualizar tarea:', error);
+    // Aseguramos que al menos se guarda en localStorage
     saveTasks();
   }
 }
 
 async function resetServer() {
-  if (await apiAvailable()) {
-    await fetch('/api/reset', { method: 'POST' });
+  try {
+    if (await apiAvailable()) {
+      const res = await fetch('/api/reset', { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`Error al resetear servidor: ${res.status} ${res.statusText}`);
+      }
+      console.log('Servidor reseteado exitosamente');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error al resetear el servidor:', error);
+    return false;
   }
 }
 
@@ -220,23 +303,60 @@ modalCancelBtn.addEventListener('click', () => {
 });
 
 modalConfirmBtn.addEventListener('click', async () => {
-  localStorage.removeItem('kanbanTasks');
-  await resetServer();
-  tasks = JSON.parse(JSON.stringify(defaultTasks));
-  // persist defaults if server available
-  if (await apiAvailable()) {
-    for (const t of tasks) {
-      await persistTask(t);
+  try {
+    // Primero reseteamos localStorage
+    localStorage.removeItem('kanbanTasks');
+    console.log('LocalStorage reseteado');
+    
+    // Intentamos resetear el servidor
+    const serverReset = await resetServer();
+    
+    // Cargamos las tareas por defecto
+    tasks = JSON.parse(JSON.stringify(defaultTasks));
+    
+    // Si el servidor está disponible, persistimos las tareas por defecto
+    if (serverReset && await apiAvailable()) {
+      console.log('Persistiendo tareas por defecto en el servidor...');
+      for (const t of tasks) {
+        await persistTask(t);
+      }
+    } else {
+      // Si no, solo guardamos en localStorage
+      console.log('Persistiendo tareas por defecto en localStorage');
+      saveTasks();
     }
-  } else {
-    saveTasks();
+    
+    // Renderizamos el tablero
+    renderBoard();
+    
+    // Ocultamos el modal
+    confirmModal.classList.add('hidden');
+    confirmModal.classList.remove('flex');
+    
+    // Mostramos mensaje de éxito
+    console.log('Tablero reseteado exitosamente');
+  } catch (error) {
+    console.error('Error al resetear tablero:', error);
+    alert('Hubo un error al resetear el tablero. Por favor, intenta de nuevo.');
+    
+    // Ocultamos el modal
+    confirmModal.classList.add('hidden');
+    confirmModal.classList.remove('flex');
   }
-  renderBoard();
-  confirmModal.classList.add('hidden');
-  confirmModal.classList.remove('flex');
 });
 
 // --- INICIALIZACIÓN ---
+async function initState() {
+  try {
+    await loadTasks();
+    console.log('Estado cargado correctamente');
+  } catch (error) {
+    console.error('Error al cargar el estado:', error);
+    tasks = JSON.parse(JSON.stringify(defaultTasks));
+    saveTasks();
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   await initState();
   renderBoard();
