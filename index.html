@@ -14,7 +14,18 @@
 
         <div class="max-w-full mx-auto flex flex-col h-screen">
             <header class="mb-6 flex-shrink-0">
-                <h1 class="text-3xl font-bold text-gray-800">🌈Qué gran día Vero🥰</h1>
+                <h1 class="text-3xl font-bold text-gray-800">🌈 Qué gran día, Vero! 🥰 <span id="current-day" class="align-middle ml-4 text-lg font-semibold text-green-600"></span></h1>
+                <script>
+                    (function(){
+                        const span = document.getElementById('current-day');
+                        if(span){
+                            const now = new Date();
+                            const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+                            const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+                            span.textContent = dias[now.getDay()] + ' ' + now.getDate() + ' de ' + meses[now.getMonth()];
+                        }
+                    })();
+                </script>
                 <p class="text-gray-600">Organizo mis tareas de forma visual e intuitiva.</p>
             </header>
 
