@@ -38,3 +38,22 @@ data/
 *.sqlite3
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
+
+## Backups (ya dentro de data/, redundante por claridad)
+data/backups/
+
+## Windows shortcuts (no son necesarios en el repo)
+*.lnk
+
+## Portable / ejecutables
+dist/
+*.exe
+*.zip
+
+## Exportaciones Word generadas
+kanban_tablero*.doc
+
+## Logs (si en el futuro se añaden)
+*.log
